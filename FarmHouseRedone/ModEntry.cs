@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Reflection;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using xTile;
 using StardewModdingAPI;
+using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Locations;
 using Microsoft.Xna.Framework;
@@ -19,11 +16,19 @@ namespace FarmHouseRedone
         public override void Entry(IModHelper helper)
         {
             Logger.monitor = Monitor;
-            var harmony = HarmonyInstance.Create("mabelsyrup.farmhouse");
-
-            FarmHouseStates.harmony = harmony;
+            FarmHouseStates.harmony = HarmonyInstance.Create("mabelsyrup.farmhouse");
             FarmHouseStates.spouseRooms = new Dictionary<string, int>();
             FarmHouseStates.reflector = helper.Reflection;
+
+            helper.Events.GameLoop.GameLaunched += onGameLaunched;
+            helper.Events.GameLoop.DayStarted += onDayStarted;
+            helper.Events.World.NpcListChanged += onNpcListChanged;
+            helper.Events.Player.Warped += onWarped;
+        }
+
+        private void onGameLaunched(object sender, GameLaunchedEventArgs e)
+        {
+            var harmony = FarmHouseStates.harmony;
 
             //FarmHouse patches
             harmony.Patch(
@@ -39,7 +44,7 @@ namespace FarmHouseRedone
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(FarmHouse_setMapForUpgradeLevel_patch), nameof(FarmHouse_setMapForUpgradeLevel_patch.Prefix)))
             );
             harmony.Patch(
-                original: helper.Reflection.GetMethod(new FarmHouse(), "doSetVisibleFloor").MethodInfo,
+                original: this.Helper.Reflection.GetMethod(new FarmHouse(), "doSetVisibleFloor").MethodInfo,
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(FarmHouse_doSetVisibleFloor_Patch), nameof(FarmHouse_doSetVisibleFloor_Patch.Prefix)))
             );
             harmony.Patch(
@@ -62,7 +67,7 @@ namespace FarmHouseRedone
 
             //DecoratableLocation patches
             harmony.Patch(
-                original: helper.Reflection.GetMethod(new DecoratableLocation(), "doSetVisibleWallpaper").MethodInfo,
+                original: this.Helper.Reflection.GetMethod(new DecoratableLocation(), "doSetVisibleWallpaper").MethodInfo,
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(DecoratableLocation_doSetVisibleWallpaper_Patch), nameof(DecoratableLocation_doSetVisibleWallpaper_Patch.Prefix)))
             );
             harmony.Patch(
@@ -73,13 +78,10 @@ namespace FarmHouseRedone
                 original: AccessTools.Method(typeof(DecoratableLocation), nameof(DecoratableLocation.setWallpaper)),
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(DecoratableLocation_setWallpaper_Patch), nameof(DecoratableLocation_setWallpaper_Patch.Prefix)))
             );
-            FarmHouseStates.init(helper.Content);
-            helper.Events.GameLoop.DayStarted += newDay;
-            helper.Events.World.NpcListChanged += npcListChanged;
-            helper.Events.Player.Warped += fixPlayerHouseWarp;
+            FarmHouseStates.init(this.Helper.Content);
         }
 
-        internal void fixPlayerHouseWarp(object sender, StardewModdingAPI.Events.WarpedEventArgs e)
+        internal void onWarped(object sender, WarpedEventArgs e)
         {
             if (!(e.NewLocation is FarmHouse) || e.NewLocation is Cabin)
                 return;
@@ -178,7 +180,7 @@ namespace FarmHouseRedone
             }
         }
 
-        internal void npcListChanged(object sender, StardewModdingAPI.Events.NpcListChangedEventArgs e)
+        internal void onNpcListChanged(object sender, NpcListChangedEventArgs e)
         {
             if (!(e.Location is FarmHouse) || e.Location is Cabin)
                 return;
@@ -202,7 +204,7 @@ namespace FarmHouseRedone
             }
         }
 
-        internal void newDay(object sender, EventArgs e)
+        internal void onDayStarted(object sender, DayStartedEventArgs e)
         {
             FarmHouse house = (Game1.getLocationFromName("FarmHouse") as FarmHouse);
             FarmHouseStates.clear();
